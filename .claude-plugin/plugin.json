@@ -1,0 +1,7 @@
+{
+  "name": "hud",
+  "version": "0.1.0",
+  "description": "HUD above the prompt: model, project and git, context and 5h usage, running tools, subagents and todos.",
+  "author": { "name": "marc" },
+  "types": "./types/index.d.ts"
+}
