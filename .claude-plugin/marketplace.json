@@ -1,6 +1,6 @@
 {
   "name": "hud",
-  "description": "A heads-up display band above the Claude Code prompt: model, git, context, 5h and weekly limits, subagents and todos.",
+  "description": "A heads-up display band above the Claude Code prompt: model, git, context, and 5h and weekly limits.",
   "owner": {
     "name": "Marc Boisvert-Dupras"
   },

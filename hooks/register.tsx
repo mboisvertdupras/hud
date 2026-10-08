@@ -1,15 +1,11 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, RenderChildren, SessionUsage, Timer } from 'claude-code'
+import type { EngineInterface, Register, RenderChildren, SessionUsage } from 'claude-code'
 
 import type { HudSession, HudUsage, HudWindow } from '../types'
 
 const session = atom({ plugin: 'hud', key: 'session' } as const, null)
 const usage = atom({ plugin: 'hud', key: 'usage' } as const, null)
-const agents = atom({ plugin: 'hud', key: 'agents' } as const, [])
-const todos = atom({ plugin: 'hud', key: 'todos' } as const, [])
 const now = atom({ plugin: 'hud', key: 'now' } as const, 0)
-
-const AGENTS_SHOWN = 3
 
 const displayModel = (model: string) => {
   const match = /^claude-([a-z]+)-(\d+(?:-\d\b)?)/.exec(model)
@@ -34,16 +30,6 @@ const formatResetTime = (resetsAt: string, at: number) => {
   if (hours >= 24) return hours % 24 > 0 ? `${Math.floor(hours / 24)}d ${hours % 24}h` : `${Math.floor(hours / 24)}d`
   return minutes % 60 > 0 ? `${hours}h ${minutes % 60}m` : `${hours}h`
 }
-
-const formatElapsed = (ms: number) => {
-  if (ms < 1000) return '<1s'
-  if (ms < 60_000) return `${Math.round(ms / 1000)}s`
-  const minutes = Math.floor(ms / 60_000)
-  if (minutes < 60) return `${minutes}m ${Math.floor(ms / 1000) % 60}s`
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
-}
-
-const truncate = (text: string, max: number) => (text.length <= max ? text : `${text.slice(0, max - 3)}...`)
 
 const toUsage = ({ context, rateLimits }: Pick<SessionUsage, 'context' | 'rateLimits'>): HudUsage => {
   const windowOf = (kind: string) => {
@@ -73,17 +59,6 @@ async function markNow($: EngineInterface) {
   return at
 }
 
-let ticker: Timer | undefined
-
-async function syncTicker($: EngineInterface) {
-  const isRunning = (await read($, agents)).length > 0
-  if (isRunning && !ticker) ticker = $.clock.every(1000, () => void markNow($))
-  if (!isRunning) {
-    ticker?.cancel()
-    ticker = undefined
-  }
-}
-
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
@@ -91,13 +66,6 @@ export const register: Register = on => {
     await update($, session, () => current)
     await update($, usage, () => toUsage(figures))
     return started
-  })
-
-  on('session.end', async ($, e, next) => {
-    await update($, agents, () => [])
-    await update($, todos, () => [])
-    await syncTicker($)
-    return next(e)
   })
 
   on('session.measure', async ($, e, next) => {
@@ -111,77 +79,19 @@ export const register: Register = on => {
     if (e.agentId === undefined) {
       const current = await readSession($)
       await update($, session, () => current)
-    } else {
-      await update($, agents, list => list.filter(agent => agent.id !== e.agentId))
-      await syncTicker($)
     }
     return completed
   })
 
-  on('agent.spawn', async ($, e, next) => {
-    const started = await next(e)
-    if (e.parentAgentId !== undefined || started.agentId === undefined) return started
-    const agent = {
-      id: started.agentId,
-      type: e.subagentType,
-      model: e.model,
-      description: e.description,
-      startedAt: await markNow($),
-    }
-    await update($, agents, list => [...list, agent])
-    await syncTicker($)
-    return started
-  }).catch(($, e, next) => next(e))
-
-  on('tool.call', async ($, e, next) => {
-    if (e.agentId !== undefined) return next(e)
-
-    if (e.tool === 'TodoWrite') {
-      await update($, todos, () => e.todos.map(({ content, status }) => ({ content, status })))
-      return next(e)
-    }
-
-    if (e.tool === 'TaskCreate') {
-      const ran = await next(e)
-      const task = ran.isError || ran.deny !== undefined ? undefined : ran.result.task
-      if (task) await update($, todos, list => [...list, { id: task.id, content: e.subject, status: 'pending' as const }])
-      return ran
-    }
-
-    if (e.tool === 'TaskUpdate') {
-      const { taskId, status, subject } = e
-      await update($, todos, list =>
-        status === 'deleted'
-          ? list.filter(todo => todo.id !== taskId)
-          : list.map(todo =>
-              todo.id === taskId ? { ...todo, status: status ?? todo.status, content: subject ?? todo.content } : todo,
-            ),
-      )
-      return next(e)
-    }
-
-    return next(e)
-  }).catch(($, e, next) => next(e))
-
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
 
-    const [current, figures, running, list, at] = await Promise.all([
-      read($, session),
-      read($, usage),
-      read($, agents),
-      read($, todos),
-      read($, now),
-    ])
+    const [current, figures, at] = await Promise.all([read($, session), read($, usage), read($, now)])
     if (!current && !figures) return next(e)
 
     const { Box, Text } = $.ui.resolve(e)
     const width = e.props.bodyColumns
     const barWidth = width >= 100 ? 10 : width >= 60 ? 6 : 4
-
-    const inProgress = list.find(todo => todo.status === 'in_progress')
-    const completedTodos = list.filter(todo => todo.status === 'completed').length
-    const todoProgress = <Text dimColor>({completedTodos}/{list.length})</Text>
 
     const lines: [string, RenderChildren][] = []
     if (current) {
@@ -231,24 +141,6 @@ export const register: Register = on => {
           quotaSegment('Weekly', figures.sevenDay, '7d'),
         ],
       ])
-    }
-    for (const agent of running.slice(-AGENTS_SHOWN)) {
-      lines.push([
-        `agent-${agent.id}`,
-        [
-          <Text color="yellow">◐</Text>,
-          ' ',
-          <Text color="magenta">{agent.type}</Text>,
-          agent.model && <Text dimColor> [{agent.model}]</Text>,
-          agent.description && <Text dimColor>: {truncate(agent.description, 40)}</Text>,
-          <Text dimColor> ({formatElapsed(Math.max(0, at - agent.startedAt))})</Text>,
-        ],
-      ])
-    }
-    if (inProgress) {
-      lines.push(['todos', [<Text color="yellow">▸</Text>, ` ${truncate(inProgress.content, 50)} `, todoProgress]])
-    } else if (list.length > 0 && completedTodos === list.length) {
-      lines.push(['todos', [<Text color="green">✓</Text>, ' All todos complete ', todoProgress]])
     }
 
     return (
