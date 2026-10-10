@@ -1,6 +1,6 @@
 {
   "name": "hud",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "HUD above the prompt: model, project and git, context, and 5h and weekly limits.",
   "author": { "name": "marc" },
   "types": "./types/index.d.ts"
