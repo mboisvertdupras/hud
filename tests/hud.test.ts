@@ -44,11 +44,11 @@ test('context bar is green under 70, yellow under 85, red from 85', async ($, on
   const ui = await mountBand($)
 
   for (const [percent, color, filled] of [
-    [45, 'green', '█████'],
-    [70, 'yellow', '███████'],
-    [84, 'yellow', '████████'],
-    [85, 'red', '█████████'],
-    [100, 'red', '██████████'],
+    [45, 'ansi256(2)', '█████'],
+    [70, 'ansi256(3)', '███████'],
+    [84, 'ansi256(3)', '████████'],
+    [85, 'ansi256(1)', '█████████'],
+    [100, 'ansi256(1)', '██████████'],
   ] as const) {
     await measure($, percent)
     const contextBar = await ui.find({ type: 'Text', text: /^█+$/ })

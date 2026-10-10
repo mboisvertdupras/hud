@@ -13,9 +13,9 @@ const displayModel = (model: string) => {
   return `${match[1][0]?.toUpperCase()}${match[1].slice(1)} ${match[2].replace('-', '.')}`
 }
 
-const contextColor = (percent: number) => (percent >= 85 ? 'red' : percent >= 70 ? 'yellow' : 'green')
+const contextColor = (percent: number) => (percent >= 85 ? 'ansi256(1)' : percent >= 70 ? 'ansi256(3)' : 'ansi256(2)')
 
-const quotaColor = (percent: number) => (percent >= 90 ? 'red' : percent >= 75 ? 'magentaBright' : 'blueBright')
+const quotaColor = (percent: number) => (percent >= 90 ? 'ansi256(1)' : percent >= 75 ? 'ansi256(13)' : 'ansi256(12)')
 
 const bar = (percent: number, width: number) => {
   const filled = Math.round((Math.min(100, Math.max(0, percent)) / 100) * width)
@@ -98,18 +98,18 @@ export const register: Register = on => {
       lines.push([
         'session',
         [
-          <Text color="cyan">[{current.model}]</Text>,
-          <Text dimColor> │ </Text>,
-          <Text color="yellow">{current.project}</Text>,
+          <Text color="ansi256(6)">[{current.model}]</Text>,
+          <Text> │ </Text>,
+          <Text color="ansi256(3)">{current.project}</Text>,
           current.git && (
             <Text>
               {' '}
-              <Text color="magenta">git:(</Text>
-              <Text color="cyan">
+              <Text color="ansi256(5)">git:(</Text>
+              <Text color="ansi256(6)">
                 {current.git.branch}
                 {current.git.isDirty ? '*' : ''}
               </Text>
-              <Text color="magenta">)</Text>
+              <Text color="ansi256(5)">)</Text>
             </Text>
           ),
         ],
@@ -122,7 +122,8 @@ export const register: Register = on => {
         const reset = window.resetsAt ? formatResetTime(window.resetsAt, at) : ''
         return (
           <Text>
-            <Text dimColor> │ {label} </Text>
+            <Text> │ </Text>
+            <Text dimColor>{label} </Text>
             <Text color={quotaColor(window.percent)}>{bar(window.percent, barWidth)[0]}</Text>
             <Text dimColor>{bar(window.percent, barWidth)[1]}</Text>
             <Text color={quotaColor(window.percent)}> {window.percent}%</Text>
